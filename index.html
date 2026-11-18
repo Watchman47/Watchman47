@@ -36612,13 +36612,13 @@ async function gxSendInviteEmail(email){
   }catch(e){return(e&&e.message)||"Email could not be sent";}
 }
 
-function ClientsPanel({callerRole,callerCompanyId="",authUserId="",onCompaniesChanged}){
+function ClientsPanel({callerRole,callerCompanyId="",authUserId="",onCompaniesChanged,autoNew=false}){
   const isAdmin=callerRole==="admin";
   const isSuper=callerRole==="super_admin";
   const[rows,setRows]=useState([]);
   const[loading,setLoading]=useState(true);
   const[sel,setSel]=useState(isAdmin?callerCompanyId:null);
-  const[showNew,setShowNew]=useState(false);
+  const[showNew,setShowNew]=useState(!!autoNew);
   const[nm,setNm]=useState("");const[erp,setErp]=useState("Odoo");const[ind,setInd]=useState("");const[cty,setCty]=useState("");
   const[busy,setBusy]=useState(false);const[err,setErr]=useState("");
 
@@ -38627,8 +38627,8 @@ CRITICAL RULES:
 /* ═══════════════════════════════════════════════════════════════════
    MAIN APP
 ═══════════════════════════════════════════════════════════════════ */
-function MainApp({analysis,reviews,meta,onReset,realMode=false,presetRole=null,presetUserDept="",presetUserCompany="",authUserId=null,initialGovernanceMatrix=null,initialPoolRecords=null,onPersistElicitation=null,onPersistGovernance=null,onPersistWaiver=null,companies=[],activeCompanyId=null,onSwitchCompany=null,onCompaniesChanged=null}){
-  const initialView=presetRole?((presetRole==="admin"||presetRole==="super_admin")?"home":presetRole==="consultant"?"c-home":presetRole==="functional"?"f-home":presetRole==="technical"?"t-home":"u-home"):"";
+function MainApp({analysis,reviews,meta,onReset,realMode=false,presetRole=null,presetUserDept="",presetUserCompany="",authUserId=null,initialGovernanceMatrix=null,initialPoolRecords=null,onPersistElicitation=null,onPersistGovernance=null,onPersistWaiver=null,companies=[],activeCompanyId=null,onSwitchCompany=null,onCompaniesChanged=null,startView="",startNew=false,onHome=null}){
+  const initialView=startView?startView:presetRole?((presetRole==="admin"||presetRole==="super_admin")?"home":presetRole==="consultant"?"c-home":presetRole==="functional"?"f-home":presetRole==="technical"?"t-home":"u-home"):"";
   const[role,setRole]=useState(presetRole||null);
   const[coSwitchOpen,setCoSwitchOpen]=useState(false);
   const[coSwitchQuery,setCoSwitchQuery]=useState("");
@@ -38805,6 +38805,7 @@ function MainApp({analysis,reviews,meta,onReset,realMode=false,presetRole=null,p
       {coSwitchOpen&&<div className="gx-ovl" onClick={()=>setCoSwitchOpen(false)}/>}
       <aside className="gx-glass gx-side">
         <div className="gx-brand" style={{justifyContent:"center"}}><EmblemMark size={52}/></div>
+        {realMode&&onHome&&<button type="button" className="gx-switch" style={{marginBottom:8}} onClick={onHome}><span className="l">Home</span><span className="v">All clients &#8962;</span></button>}
         {realMode&&companies&&companies.length>0?(
           <div style={{position:"relative"}}>
             <div style={{display:"flex",gap:6}}>
@@ -38983,7 +38984,7 @@ function MainApp({analysis,reviews,meta,onReset,realMode=false,presetRole=null,p
         {view==="t-tir"&&<div style={{padding:20}}><TransformationIntelligenceReport depts={depts} authUserId={authUserId} realMode={realMode} editable={false}/></div>}
 
         {/* ADMIN: FRD */}
-        {(view==="clients"||view==="c-clients")&&<div style={{padding:20}}><ClientsPanel callerRole={role} callerCompanyId={presetUserCompany} authUserId={authUserId} onCompaniesChanged={onCompaniesChanged}/></div>}
+        {(view==="clients"||view==="c-clients")&&<div style={{padding:20}}><ClientsPanel autoNew={startNew} callerRole={role} callerCompanyId={presetUserCompany} authUserId={authUserId} onCompaniesChanged={onCompaniesChanged}/></div>}
         {view==="setup"&&<div style={{padding:20}}><CompanySetupPanel onCompanyCreated={onCompaniesChanged} realMode={realMode}/></div>}
         {view==="useraccess"&&<div style={{padding:20}}><UserAccessPanel realMode={realMode} callerRole={role} callerCompanyId={presetUserCompany}/></div>}
         {view==="vault"&&<div style={{padding:20}}><VaultPanel callerRole={role}/></div>}
@@ -41780,6 +41781,52 @@ function emptyAnalysis(){
   };
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   HUB: landing screen for Super Admin and Consultant after sign-in (v38)
+   ═══════════════════════════════════════════════════════════════════ */
+function HubScreen({email,role,companies,onOpen,onOnboard,onClients,onUsers,onSignOut}){
+  const isSuper=role==="super_admin";
+  const[q,setQ]=useState("");
+  const list=(companies||[]).filter(c=>(c.name||"").toLowerCase().includes(q.toLowerCase()));
+  const act=(t,d,fn,primary)=>(
+    <button type="button" onClick={fn} style={{textAlign:"left",padding:"14px 16px",borderRadius:12,border:primary?"1px solid #1d4ed8":"1px solid #e5e7eb",background:primary?"#1d4ed8":"#fff",color:primary?"#fff":"#111827",cursor:"pointer"}}>
+      <div style={{fontSize:13,fontWeight:500}}>{t}</div>
+      <div style={{fontSize:11,marginTop:3,opacity:primary?0.85:0.6}}>{d}</div>
+    </button>
+  );
+  return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#f0eeff,#f9fafb)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{width:"100%",maxWidth:640}}>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <Logo h={48}/>
+          <div style={{fontSize:13,color:"#374151",marginTop:10}}>What would you like to do?</div>
+          <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{email}</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:14}}>
+          {isSuper&&act("Onboard a new client","Create a company, assign a Consultant and invite users",onOnboard,true)}
+          {act(isSuper?"Manage clients":"My clients","Status, invited users and activation",onClients,false)}
+          {isSuper&&act("Manage user accounts","Create Consultant and Admin accounts",onUsers,false)}
+        </div>
+        <Card>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:13,fontWeight:500}}>Open a client</div>
+            {(companies||[]).length>5&&<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" style={{padding:"6px 10px",borderRadius:8,border:"1px solid #d1d5db",fontSize:12}}/>}
+          </div>
+          {list.length===0?(
+            <div style={{fontSize:12,color:"#6b7280",padding:"6px 0"}}>{(companies||[]).length===0?(isSuper?"No clients yet. Use Onboard a new client.":"No clients are assigned to you yet."):"No matches."}</div>
+          ):list.map(c=>(
+            <button key={c.id} type="button" onClick={()=>onOpen(c.id)} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"10px 4px",border:"none",borderTop:"1px solid #f3f4f6",background:"none",cursor:"pointer",textAlign:"left"}}>
+              <span><span style={{fontSize:13,fontWeight:500,color:"#111827"}}>{c.name}</span><span style={{fontSize:11,color:"#6b7280",marginLeft:8}}>{[c.erp_system,c.industry].filter(Boolean).join(" · ")}</span></span>
+              <GxPill s={c.status||"onboarding"}/>
+            </button>
+          ))}
+        </Card>
+        <div style={{textAlign:"center",marginTop:14}}><button type="button" onClick={onSignOut} style={{fontSize:12,color:"#9ca3af",border:"none",background:"none",cursor:"pointer"}}>Sign out</button></div>
+      </div>
+    </div>
+  );
+}
+
 function RealEngagementGate({onBack}){
   const[stage,setStage]=useState("checking");
   const[session,setSession]=useState(null);
@@ -41787,6 +41834,8 @@ function RealEngagementGate({onBack}){
   const[companies,setCompanies]=useState([]);
   const[bundle,setBundle]=useState(null);
   const[errMsg,setErrMsg]=useState("");
+  const[startView,setStartView]=useState("");
+  const[startNew,setStartNew]=useState(false);
 
   useEffect(()=>{
     if(OPENED_FROM_RESET_LINK){setStage("setpw");return;}
@@ -41796,9 +41845,24 @@ function RealEngagementGate({onBack}){
     });
   },[]);
 
-  const refreshSidebarCompanies=async()=>{
+  const visibleCompaniesFor=async(r,uid)=>{
     const {data:companyRows}=await supabase.from("companies").select("*").order("name");
-    setCompanies(companyRows||[]);
+    let rows=companyRows||[];
+    if(r==="consultant"){
+      const{data:as}=await supabase.from("company_assignments").select("company_id").eq("user_id",uid);
+      const mine=new Set((as||[]).map(a=>a.company_id));
+      rows=rows.filter(c=>mine.has(c.id));
+    }
+    return rows;
+  };
+  const refreshSidebarCompanies=async()=>{
+    if(!profile||!session)return;
+    setCompanies(await visibleCompaniesFor(profile.role,session.user.id));
+  };
+  const openCompany=(id)=>{setStartView("");setStartNew(false);loadForCompany(id);};
+  const openStaffView=(v,isNew)=>{
+    setBundle({analysis:emptyAnalysis(),governanceMatrix:{},poolRecords:[],companyId:null});
+    setStartView(v);setStartNew(!!isNew);setStage("ready");
   };
 
   const handleSignedIn=async(sess)=>{
@@ -41825,15 +41889,11 @@ function RealEngagementGate({onBack}){
          their role regardless of whether any client data exists yet -
          data fills in gradually as it's uploaded, it should never be
          a precondition for logging in and looking around. */
-      const {data:companyRows}=await supabase.from("companies").select("*").order("name");
-      const rows=companyRows||[];
+      /* Super Admin and Consultant choose what to do on a landing hub
+         instead of being dropped into whichever company sorts first. */
+      const rows=await visibleCompaniesFor(userRow.role,sess.user.id);
       setCompanies(rows);
-      if(rows.length>0){
-        await loadForCompany(rows[0].id);
-      }else{
-        setBundle({analysis:emptyAnalysis(),governanceMatrix:{},poolRecords:[],companyId:null});
-        setStage("ready");
-      }
+      setStage("hub");
     }
   };
 
@@ -41863,6 +41923,12 @@ function RealEngagementGate({onBack}){
     if(data.session)handleSignedIn(data.session);else setStage("login");
   }}/>;
   if(stage==="invitepw"&&session)return<AcceptInviteScreen email={session.user.email} onDone={()=>handleSignedIn(session)}/>;
+  if(stage==="hub"&&profile)return<HubScreen email={profile.email||session.user.email} role={profile.role} companies={companies}
+    onOpen={openCompany}
+    onOnboard={()=>openStaffView("clients",true)}
+    onClients={()=>openStaffView(profile.role==="consultant"?"c-clients":"clients",false)}
+    onUsers={()=>openStaffView("useraccess",false)}
+    onSignOut={signOut}/>;
   if(stage==="loading")return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"#9ca3af",fontSize:13}}>Loading your engagement...</div>;
   if(stage==="error")return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -41892,8 +41958,11 @@ function RealEngagementGate({onBack}){
       onPersistWaiver={persistWaiver}
       companies={!profile.company_id?companies:[]}
       activeCompanyId={bundle.companyId}
-      onSwitchCompany={loadForCompany}
+      onSwitchCompany={openCompany}
       onCompaniesChanged={refreshSidebarCompanies}
+      startView={startView}
+      startNew={startNew}
+      onHome={profile.company_id?null:()=>setStage("hub")}
     />
   );
 }
